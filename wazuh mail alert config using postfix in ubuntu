@@ -1,0 +1,69 @@
+Wazuh Mail Configuration using postfix in ubuntu 20.04
+
+
+Install essential packages: 
+sudo apt update
+sudo DEBIAN_PRIORITY=low apt install postfix
+
+To be explicit, these are the settings we’ll use for this guide:
+• General type of mail configuration?: Internet Site
+• System mail name: wazuh-alert
+• Root and postmaster mail recipient: Wazuh
+• Other destinations to accept mail for: mydestination = $myhostname, localhost.$mydomain, $mydomain
+• Force synchronous updates on mail queue?: No
+• Local networks: 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+• Mailbox size limit: 0
+• Local address extension character: +
+• Internet protocols to use: all
+
+If you need to ever return to re-adjust these settings, you can do so by typing:
+sudo dpkg-reconfigure postfix
+sudo systemctl restart postfix
+
+Install the needed packages:
+apt-get install mailutils
+apt-get install libsasl2–2
+apt-get install ca-certificates
+apt-get install libsasl2-modules
+
+Configure Postfix in the /etc/postfix/main.cf file adding these lines to the end of the file:
+relayhost = [smtp.gmail.com]:587
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_tls_CAfile = /etc/ssl/certs/thawte_Primary_Root_CA.pem
+smtp_use_tls = yes
+
+Configure the email address and password:
+echo [smtp.gmail.com]:587 USERNAME@gmail.com:PASSWORD > /etc/postfix/sasl_passwd
+postmap /etc/postfix/sasl_passwd
+chmod 400 /etc/postfix/sasl_passwd
+
+Secure the DB password:
+chown root:root /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+chmod 0600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+
+Restart Postfix:
+sudo systemctl restart postfix
+
+To Test mail is reaching
+echo “This is the body of the email” | mail -s “This is the subject line” your mail address
+
+Configure Wazuh in the /var/ossec/etc/ossec.conf as follows:
+<global>
+<email_notification>yes</email_notification>
+<smtp_server>localhost</smtp_server>
+<email_from>USERNAME@gmail.com</email_from>
+<email_to>you@example.com</email_to>
+</global>
+
+the email_alert_level needs to be set to the minimum alert level that will trigger an email. By default, this level is set to 12
+<ossec_config>
+<alerts>
+<email_alert_level>10</email_alert_level>
+</alerts>
+…
+</ossec_config>
+
+After the alert_level has been configured, Wazuh needs to be restarted for the change to take effect
+systemctl restart wazuh-manager
